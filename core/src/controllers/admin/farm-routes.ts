@@ -511,9 +511,9 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
     // API: 启动账号
     app.post('/api/accounts/:id/start', (req: Request, res: Response) => {
         try {
-            const accountId = resolveAccId(ctx, req.params.id);
+            const accountId = resolveAccId(ctx, req.params.id, (req as any).user);
 
-            const ok = ctx.provider.startAccount(accountId);
+            const ok = accountId ? ctx.provider.startAccount(accountId) : false;
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }
@@ -526,9 +526,9 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
     // API: 停止账号
     app.post('/api/accounts/:id/stop', (req: Request, res: Response) => {
         try {
-            const accountId = resolveAccId(ctx, req.params.id);
+            const accountId = resolveAccId(ctx, req.params.id, (req as any).user);
 
-            const ok = ctx.provider.stopAccount(accountId);
+            const ok = accountId ? ctx.provider.stopAccount(accountId) : false;
             if (!ok) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
             }

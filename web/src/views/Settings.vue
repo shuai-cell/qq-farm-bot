@@ -1944,7 +1944,7 @@ async function handleResetSystemConfig() {
           </h3>
 
           <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-            <section class="farm-card rounded-lg p-4">
+            <section v-if="userStore.isAdmin" class="farm-card rounded-lg p-4">
               <div class="mb-4 flex items-start gap-3">
                 <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
                   <span class="i-carbon-settings-adjust text-xl" />
@@ -2083,7 +2083,7 @@ async function handleResetSystemConfig() {
             </section>
 
             <div class="min-w-0 space-y-4">
-              <section class="farm-card rounded-lg p-4">
+              <section v-if="userStore.isAdmin" class="farm-card rounded-lg p-4">
                 <div class="mb-4 flex items-start gap-3">
                   <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400">
                     <span class="i-carbon-login text-xl" />
@@ -2144,10 +2144,10 @@ async function handleResetSystemConfig() {
                   </div>
                   <div>
                     <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
-                      修改管理员密码
+                      修改密码
                     </h4>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      更新后台管理登录凭据
+                      更新当前账号的登录密码
                     </p>
                   </div>
                 </div>
@@ -2157,7 +2157,7 @@ async function handleResetSystemConfig() {
                     v-model="passwordForm.old"
                     label="当前密码"
                     type="password"
-                    placeholder="当前管理员密码"
+                    placeholder="当前登录密码"
                   />
                   <BaseInput
                     v-model="passwordForm.new"
@@ -2180,12 +2180,12 @@ async function handleResetSystemConfig() {
                     :loading="passwordSaving"
                     @click="handleChangePassword"
                   >
-                    修改管理员密码
+                    修改密码
                   </BaseButton>
                 </div>
               </section>
 
-              <section class="farm-card rounded-lg p-4">
+              <section v-if="userStore.isAdmin" class="farm-card rounded-lg p-4">
                 <div class="mb-4 flex items-start gap-3">
                   <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
                     <span class="i-carbon-notification text-xl" />

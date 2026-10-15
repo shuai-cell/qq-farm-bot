@@ -142,6 +142,8 @@ export interface GlobalConfig {
   accountConfigs: Record<string, AccountConfig>;
   defaultAccountConfig: AccountConfig;
   ui: UIConfig;
+  /** 按用户隔离的 UI 偏好；缺省回退到全局 ui。 */
+  uiByUser?: Record<string, UIConfig>;
   loginSettings: LoginSettings;
   offlineReminder: OfflineReminder;
   systemConfig: SystemConfig | null;

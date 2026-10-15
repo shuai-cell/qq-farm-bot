@@ -6,6 +6,7 @@ export interface MenuItem {
   component: () => Promise<any>
   meta?: {
     fullBleed?: boolean
+    requiresAdmin?: boolean
   }
 }
 
@@ -58,5 +59,13 @@ export const menuRoutes: MenuItem[] = [
     label: '设置',
     icon: 'i-carbon-settings',
     component: () => import('@/views/Settings.vue'),
+  },
+  {
+    path: 'users',
+    name: 'users',
+    label: '用户管理',
+    icon: 'i-carbon-user-admin',
+    component: () => import('@/views/Users.vue'),
+    meta: { requiresAdmin: true },
   },
 ]

@@ -7,22 +7,33 @@ export {};
 const { Server } = require('socket.io');
 const SocketIOServer = Server;
 
+const userStore = require('../../models/user-store');
+
 const {
     resolveAccId,
+    getAccountIds,
 } = require('./middleware');
 
+function socketUser(socket: any): { id: string; username: string; role: 'admin' | 'user' } | null {
+    const id = String(socket?.data?.userId || '');
+    if (!id) return null;
+    return { id, username: String(socket.data.username || ''), role: socket.data.role === 'admin' ? 'admin' : 'user' };
+}
+
 function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: string = ''): void {
+    const user = socketUser(socket);
     const incoming = String(accountRef || '').trim();
-    const resolved = incoming && incoming !== 'all' ? resolveAccId(ctx, incoming) : '';
+    const resolved = incoming && incoming !== 'all' ? resolveAccId(ctx, incoming, user) : '';
 
     for (const room of socket.rooms) {
         if (room.startsWith('account:')) socket.leave(room);
     }
+    const allRoom = `account:all:${user?.id || 'anonymous'}`;
     if (resolved) {
         socket.join(`account:${resolved}`);
         socket.data.accountId = resolved;
     } else {
-        socket.join('account:all');
+        socket.join(allRoom);
         socket.data.accountId = '';
     }
     socket.emit('subscribed', { accountId: socket.data.accountId || 'all' });
@@ -34,8 +45,19 @@ function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: str
             socket.emit('status:update', { accountId: targetId, status: currentStatus });
         }
         if (ctx.provider && typeof ctx.provider.getLogs === 'function') {
-            let currentLogs: any[] = ctx.provider.getLogs(targetId, { limit: 100 });
-            if (!Array.isArray(currentLogs)) currentLogs = [];
+            let currentLogs: any[] = [];
+            if (targetId) {
+                const logs = ctx.provider.getLogs(targetId, { limit: 100 });
+                if (Array.isArray(logs)) currentLogs = logs;
+            } else {
+                const merged: any[] = [];
+                for (const accId of getAccountIds(ctx, user)) {
+                    const logs = ctx.provider.getLogs(accId, { limit: 100 });
+                    if (Array.isArray(logs)) merged.push(...logs);
+                }
+                merged.sort((a: any, b: any) => (b.time || 0) - (a.time || 0));
+                currentLogs = merged.slice(0, 100);
+            }
 
             socket.emit('logs:snapshot', {
                 accountId: targetId || 'all',
@@ -45,6 +67,8 @@ function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: str
         if (ctx.provider && typeof ctx.provider.getAccountLogs === 'function') {
             let currentAccountLogs: any[] = ctx.provider.getAccountLogs(100);
             if (!Array.isArray(currentAccountLogs)) currentAccountLogs = [];
+            const ownedIds = new Set(getAccountIds(ctx, user));
+            currentAccountLogs = currentAccountLogs.filter((entry: any) => ownedIds.has(String(entry?.accountId || '')));
 
             socket.emit('account-logs:snapshot', {
                 logs: currentAccountLogs,
@@ -73,10 +97,19 @@ function setupSocketIO(ctx: AdminContext): void {
             ? String(socket.handshake.headers['x-admin-token'])
             : '';
         const token = authToken || headerToken;
-        if (!token || !ctx.tokens.has(token)) {
+        const session = token ? ctx.tokens.get(token) : undefined;
+        if (!token || !session) {
+            return next(new Error('Unauthorized'));
+        }
+        const record = userStore.getUserById(session.userId);
+        if (!record || record.enabled === false) {
+            ctx.tokens.delete(token);
             return next(new Error('Unauthorized'));
         }
         socket.data.adminToken = token;
+        socket.data.userId = record.id;
+        socket.data.username = record.username;
+        socket.data.role = record.role === 'admin' ? 'admin' : 'user';
         return next();
     });
 

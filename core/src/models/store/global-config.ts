@@ -94,19 +94,27 @@ function saveGlobalConfig(): void {
     }
 }
 
-function getUI(): UIConfig {
+function getUI(userId?: string): UIConfig {
+    const uid = String(userId || '').trim();
+    if (uid) {
+        const perUser = globalConfig.uiByUser && globalConfig.uiByUser[uid];
+        if (perUser) return { ...perUser };
+    }
     return { ...globalConfig.ui };
 }
 
-function setUITheme(theme: unknown): UIConfig {
+function setUITheme(theme: unknown, userId?: string): UIConfig {
     const t = String(theme || '').toLowerCase();
     const next: UIConfig['theme'] = (t === 'light') ? 'light' : 'dark';
-    // Import here to avoid circular - use direct globalConfig mutation
-    if (globalConfig.ui) {
+    const uid = String(userId || '').trim();
+    if (uid) {
+        if (!globalConfig.uiByUser || typeof globalConfig.uiByUser !== 'object') globalConfig.uiByUser = {};
+        globalConfig.uiByUser[uid] = { theme: next };
+    } else if (globalConfig.ui) {
         globalConfig.ui.theme = next;
     }
     saveGlobalConfig();
-    return getUI();
+    return getUI(uid);
 }
 
 function getOfflineReminder(): OfflineReminder {

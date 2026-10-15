@@ -371,9 +371,9 @@ function createDataProvider(options: DataProviderOptions) {
             }
         },
 
-        setUITheme: async (theme: string) => {
-            const snapshot = store.setUITheme(theme);
-            return { ui: snapshot.ui || store.getUI() };
+        setUITheme: async (theme: string, userId?: string) => {
+            const ui = store.setUITheme(theme, userId);
+            return { ui };
         },
 
         broadcastConfig: (accountId: string) => {

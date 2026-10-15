@@ -6,7 +6,7 @@ const { version } = require('../../../package.json');
 const { getRuntimeConfig } = require('../../config/config');
 const { getSchedulerRegistrySnapshot } = require('../../services/scheduler');
 const { createModuleLogger } = require('../../services/logger');
-const adminStore = require('../../models/admin-store');
+const userStore = require('../../models/user-store');
 
 const {
     getClientIp,
@@ -14,7 +14,13 @@ const {
     createAuthRequired,
     getAccId,
     handleApiError,
+    revokeUserTokens,
 } = require('./middleware');
+
+interface AuthedRequest extends Request {
+    adminToken?: string;
+    user?: { id: string; username: string; role: 'admin' | 'user' };
+}
 
 const adminLogger = createModuleLogger('admin');
 
@@ -28,9 +34,12 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         }
 
         const clientIp = getClientIp(req);
-        const result = adminStore.validateAdmin(String(username), String(password), clientIp);
+        const result = userStore.validateUser(String(username), String(password), clientIp);
         if (result?.error) {
-            const statusCode = result.error === 'rate_limit' ? 429 : result.error === 'locked' ? 423 : 401;
+            const statusCode = result.error === 'rate_limit' ? 429
+                : result.error === 'locked' ? 423
+                : result.error === 'disabled' ? 403
+                : 401;
             adminLogger.warn('登录失败', { username, error: result.error, ip: clientIp });
             return res.status(statusCode).json({
                 ok: false,
@@ -41,26 +50,26 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         }
 
         const token = issueToken();
-        ctx.tokens.add(token);
-        adminLogger.info('超级管理员登录成功', { username: result.username, ip: clientIp });
+        ctx.tokens.set(token, { userId: result.id, username: result.username, role: result.role });
+        adminLogger.info('用户登录成功', { username: result.username, role: result.role, ip: clientIp });
         return res.json({
             ok: true,
             data: {
                 token,
-                role: 'admin',
-                user: { username: result.username },
+                role: result.role,
+                user: { id: result.id, username: result.username },
                 mustChangePassword: result.mustChangePassword === true,
             },
         });
     });
 
-    app.post('/api/user/change-password', authRequired, (req: Request, res: Response) => {
+    app.post('/api/user/change-password', authRequired, (req: AuthedRequest, res: Response) => {
         const { oldPassword, newPassword } = req.body || {};
         if (!oldPassword || !newPassword) {
             return res.status(400).json({ ok: false, error: '请提供原密码和新密码' });
         }
-        const result = adminStore.changePassword(String(oldPassword), String(newPassword));
-        if (result.ok) ctx.tokens.clear();
+        const result = userStore.changeOwnPassword(req.user?.id, String(oldPassword), String(newPassword));
+        if (result.ok && req.user) revokeUserTokens(ctx, req.user.id);
         return res.json(result);
     });
 
@@ -112,8 +121,8 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         res.json({ ok: true });
     });
 
-    app.get('/api/user/me', (_req: Request, res: Response) => {
-        res.json({ ok: true, data: adminStore.getAdminInfo() });
+    app.get('/api/user/me', (req: AuthedRequest, res: Response) => {
+        res.json({ ok: true, data: userStore.getUserPublic(req.user?.id) });
     });
 }
 

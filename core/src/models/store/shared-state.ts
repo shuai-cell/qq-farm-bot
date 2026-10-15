@@ -494,6 +494,7 @@ const globalConfig: GlobalConfig = {
     ui: {
         theme: 'light',
     },
+    uiByUser: {},
     loginSettings: { ...DEFAULT_LOGIN_SETTINGS },
     offlineReminder: { ...DEFAULT_OFFLINE_REMINDER },
     systemConfig: null,
@@ -529,6 +530,16 @@ function loadGlobalConfig(): void {
             globalConfig.ui = { ...globalConfig.ui, ...(data.ui || {}) };
             const theme = String(globalConfig.ui.theme || '').toLowerCase();
             globalConfig.ui.theme = theme === 'light' ? 'light' : 'dark';
+
+            const rawUiByUser = (data.uiByUser && typeof data.uiByUser === 'object') ? data.uiByUser : {};
+            const uiByUser: Record<string, { theme: 'light' | 'dark' }> = {};
+            for (const [uid, cfg] of Object.entries(rawUiByUser)) {
+                const sid = String(uid || '').trim();
+                if (!sid || !cfg || typeof cfg !== 'object') continue;
+                const t = String((cfg as any).theme || '').toLowerCase();
+                uiByUser[sid] = { theme: t === 'light' ? 'light' : 'dark' };
+            }
+            globalConfig.uiByUser = uiByUser;
 
             // offlineReminder normalization done in global-config
             if (data.offlineReminder && typeof data.offlineReminder === 'object') {

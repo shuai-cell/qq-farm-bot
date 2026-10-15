@@ -4,6 +4,7 @@ export {};
 const fs = require('node:fs');
 const { ensureDataDir } = require('../../config/runtime-paths');
 const { readJsonFile, writeJsonFileAtomic } = require('../../services/json-db');
+const { ADMIN_USER_ID } = require('../user-store');
 
 const { ACCOUNTS_FILE } = require('./shared-state');
 
@@ -37,6 +38,7 @@ function normalizeAccount(raw: any): Account {
     const source = raw && typeof raw === 'object' ? raw : {};
     const account: Account = {
         id: String(source.id || ''),
+        ownerId: String(source.ownerId || ADMIN_USER_ID),
         name: String(source.name || ''),
         code: String(source.code || ''),
         platform: String(source.platform || 'qq'),
@@ -57,7 +59,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
     let touchedAccountId = '';
     const source: any = acc || {};
     const cleanAccount: any = {};
-    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick']) {
+    for (const key of ['id', 'ownerId', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick']) {
         if (source[key] !== undefined) cleanAccount[key] = source[key];
     }
     acc = cleanAccount;
@@ -72,6 +74,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
         touchedAccountId = String(id);
         data.accounts.push({
             id: touchedAccountId,
+            ownerId: acc.ownerId ? String(acc.ownerId) : ADMIN_USER_ID,
             name: acc.name || `账号${id}`,
             code: acc.code || '',
             platform: acc.platform || 'qq',
