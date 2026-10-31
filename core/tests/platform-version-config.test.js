@@ -23,9 +23,11 @@ function memoryStore(initialSystemConfig) {
     let saved = { systemConfig: initialSystemConfig };
     const overrides = {
         '../../config/runtime-paths': { getDataFile: name => name, ensureDataDir() {} },
-        '../../services/json-db': {
-            readJsonFile: () => saved, readTextFile: () => '',
-            writeJsonFileAtomic: (_file, value) => { saved = JSON.parse(JSON.stringify(value)); },
+        './config-storage': {
+            createConfigStorage: () => ({
+                load: () => saved,
+                saveGlobal: value => { saved = JSON.parse(JSON.stringify(value)); },
+            }),
         },
     };
     const shared = load('models/store/shared-state.js', overrides);
@@ -139,7 +141,8 @@ test('saving or resetting connection settings never restarts live QQ or WeChat a
         const h = memoryStore(null);
         const { mountAccountRoutes } = load('controllers/admin/account-routes.js', { '../../models/store': h.store });
         let broadcasts = 0;
-        mountAccountRoutes({ get() {}, post: (route, handler) => routes.set(route, handler), delete() {}, put() {} }, { provider: {
+        // Express mounts auth middleware before the handler; keep only the final handler.
+        mountAccountRoutes({ get() {}, post: (route, ...handlers) => routes.set(route, handlers[handlers.length - 1]), delete() {}, put() {} }, { provider: {
             getAccounts: () => ({ accounts: [{ id: 'qq' }, { id: 'wx' }] }),
             isAccountRunning: () => true,
             restartAccount: () => assert.fail('Must not replay a used Code or disconnect another platform'),
