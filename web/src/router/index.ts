@@ -11,6 +11,21 @@ const adminToken = useStorage('admin_token', '')
 let validatedToken = ''
 let validatingPromise: Promise<boolean> | null = null
 
+// user_info 由 user store 以 JSON 持久化；这里在导航时按需读取，
+// 避免再建一个 useStorage 实例（默认 null 会触发 "any" 序列化器导致读取失败）。
+function readStoredRole(): string | undefined {
+  try {
+    const raw = localStorage.getItem('user_info')
+    if (!raw)
+      return undefined
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed.role : undefined
+  }
+  catch {
+    return undefined
+  }
+}
+
 async function ensureTokenValid() {
   const token = String(adminToken.value || '').trim()
   if (!token)
@@ -89,6 +104,10 @@ router.beforeEach(async (to, _from) => {
     adminToken.value = ''
     validatedToken = ''
     return { name: 'login' }
+  }
+
+  if (to.meta?.requiresAdmin && readStoredRole() !== 'admin') {
+    return { name: 'dashboard' }
   }
 
   return true

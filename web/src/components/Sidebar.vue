@@ -284,12 +284,15 @@ const connectionStatus = computed(() => {
 
 const navItems = computed(() => {
   return getSpaceMenu(route.meta.gameSpace === 'ranch')
+    .filter(item => !item.meta?.requiresAdmin || userStore.isAdmin)
     .map(item => ({
       path: item.path ? `/${item.path}` : '/',
       label: item.label,
       icon: item.icon,
     }))
 })
+
+const roleLabel = computed(() => (userStore.isAdmin ? '超级管理员' : '普通用户'))
 
 function selectAccount(acc: any) {
   accountStore.setCurrentAccount(acc)
@@ -395,7 +398,7 @@ async function copyToken() {
                     >
                     <span v-else class="i-carbon-user-avatar text-xl text-gray-500 dark:text-gray-300" aria-hidden="true" />
                   </div>
-                  <div class="admin-star absolute z-10 h-4 w-4 flex items-center justify-center rounded-full text-[8px] shadow-sm -right-1 -top-1">
+                  <div v-if="userStore.isAdmin" class="admin-star absolute z-10 h-4 w-4 flex items-center justify-center rounded-full text-[8px] shadow-sm -right-1 -top-1">
                     <span>&#9733;</span>
                   </div>
                 </div>
@@ -407,7 +410,7 @@ async function copyToken() {
                     <span
                       class="admin-badge rounded-lg px-1.5 py-0.2 text-[10px] leading-tight font-medium"
                     >
-                      超级管理员
+                      {{ roleLabel }}
                     </span>
                   </div>
                 </div>
@@ -421,7 +424,7 @@ async function copyToken() {
           </template>
           <div class="sidebar-tooltip-content">
             <strong>{{ userStore.username || '未登录' }}</strong>
-            <span>超级管理员 · 点击查看账户菜单</span>
+            <span>{{ roleLabel }} · 点击查看账户菜单</span>
           </div>
         </NTooltip>
 
@@ -435,7 +438,7 @@ async function copyToken() {
               {{ userStore.username }}
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              超级管理员
+              {{ roleLabel }}
             </div>
           </div>
           <div class="py-1">

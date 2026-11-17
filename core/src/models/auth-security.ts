@@ -5,6 +5,8 @@ const { getDataFile, ensureDataDir } = require('../config/runtime-paths');
 
 const LOGIN_ATTEMPTS_FILE: string = getDataFile('login-attempts.json');
 const ADMIN_ATTEMPT_KEY = 'admin';
+const LEGACY_ADMIN_USER_ID = '1';
+const UNKNOWN_USER_ATTEMPT_KEY = 'user:__unknown__';
 
 const SALT_LENGTH = 32;
 const ITERATIONS = 100000;
@@ -41,13 +43,14 @@ function loadLoginAttempts(): void {
         const source = raw && typeof raw === 'object' ? raw : {};
         loginAttempts = {};
         for (const [key, value] of Object.entries(source)) {
-            if ((key === ADMIN_ATTEMPT_KEY || key.startsWith('ip:')) && value && typeof value === 'object') {
+            if ((key === ADMIN_ATTEMPT_KEY || key.startsWith('ip:') || key.startsWith('user:')) && value && typeof value === 'object') {
                 loginAttempts[key] = value as LoginAttempt;
             }
         }
-        const legacyAdmin = source['user:admin'];
-        if (!loginAttempts[ADMIN_ATTEMPT_KEY] && legacyAdmin && typeof legacyAdmin === 'object') {
-            loginAttempts[ADMIN_ATTEMPT_KEY] = legacyAdmin as LoginAttempt;
+        // 迁移：旧的单管理员锁定记录归到主 admin 用户键 user:1
+        const legacyAdmin = source[ADMIN_ATTEMPT_KEY] || source['user:admin'];
+        if (!loginAttempts[`user:${LEGACY_ADMIN_USER_ID}`] && legacyAdmin && typeof legacyAdmin === 'object') {
+            loginAttempts[`user:${LEGACY_ADMIN_USER_ID}`] = legacyAdmin as LoginAttempt;
         }
     } catch {
         loginAttempts = {};
@@ -96,9 +99,14 @@ function checkRateLimit(ip: string): { allowed: boolean; remainingMs?: number; m
     return { allowed: true };
 }
 
-function checkAdminLockout(): { locked: boolean; remainingMs?: number; message?: string } {
+function userAttemptKey(userId: string): string {
+    const id = String(userId || '').trim();
+    return id ? `user:${id}` : UNKNOWN_USER_ATTEMPT_KEY;
+}
+
+function checkUserLockout(userId: string): { locked: boolean; remainingMs?: number; message?: string } {
     cleanExpiredAttempts();
-    const attempt = loginAttempts[ADMIN_ATTEMPT_KEY];
+    const attempt = loginAttempts[userAttemptKey(userId)];
     const now = Date.now();
     if (attempt?.lockedUntil && attempt.lockedUntil > now) {
         const remainingMs = attempt.lockedUntil - now;
@@ -107,12 +115,13 @@ function checkAdminLockout(): { locked: boolean; remainingMs?: number; message?:
     return { locked: false };
 }
 
-function recordFailedAttempt(): { locked: boolean; message?: string; remainingAttempts?: number } {
+function recordFailedAttempt(userId: string): { locked: boolean; message?: string; remainingAttempts?: number } {
     const now = Date.now();
-    const attempt = loginAttempts[ADMIN_ATTEMPT_KEY] || { count: 0, firstAttempt: now };
+    const key = userAttemptKey(userId);
+    const attempt = loginAttempts[key] || { count: 0, firstAttempt: now };
     attempt.count++;
     attempt.lastAttempt = now;
-    loginAttempts[ADMIN_ATTEMPT_KEY] = attempt;
+    loginAttempts[key] = attempt;
     if (attempt.count >= MAX_LOGIN_ATTEMPTS) {
         attempt.lockedUntil = now + LOCKOUT_DURATION;
         saveLoginAttempts();
@@ -122,9 +131,10 @@ function recordFailedAttempt(): { locked: boolean; message?: string; remainingAt
     return { locked: false, remainingAttempts: MAX_LOGIN_ATTEMPTS - attempt.count };
 }
 
-function clearFailedAttempts(): void {
-    if (loginAttempts[ADMIN_ATTEMPT_KEY]) {
-        delete loginAttempts[ADMIN_ATTEMPT_KEY];
+function clearFailedAttempts(userId: string): void {
+    const key = userAttemptKey(userId);
+    if (loginAttempts[key]) {
+        delete loginAttempts[key];
         saveLoginAttempts();
     }
 }
@@ -167,7 +177,7 @@ function needsRehash(storedPassword: string): boolean {
 module.exports = {
     loadLoginAttempts,
     checkRateLimit,
-    checkAdminLockout,
+    checkUserLockout,
     recordFailedAttempt,
     clearFailedAttempts,
     validatePasswordStrength,

@@ -68,15 +68,27 @@ function saveGlobalConfig(changes: Partial<GlobalConfig> = {}): void {
     sharedState.accountFallbackConfig = fallback;
 }
 
-function getUI(): UIConfig {
+function getUI(userId?: string): UIConfig {
+    const uid = String(userId || '').trim();
+    if (uid) {
+        const perUser = globalConfig.uiByUser && globalConfig.uiByUser[uid];
+        if (perUser) return { ...perUser };
+    }
     return { ...globalConfig.ui };
 }
 
-function setUITheme(theme: unknown): UIConfig {
+function setUITheme(theme: unknown, userId?: string): UIConfig {
     const t = String(theme || '').toLowerCase();
     const next: UIConfig['theme'] = (t === 'light') ? 'light' : 'dark';
-    saveGlobalConfig({ ui: { ...globalConfig.ui, theme: next } });
-    return getUI();
+    const uid = String(userId || '').trim();
+    if (uid) {
+        if (!globalConfig.uiByUser || typeof globalConfig.uiByUser !== 'object') globalConfig.uiByUser = {};
+        globalConfig.uiByUser[uid] = { theme: next };
+        saveGlobalConfig({ uiByUser: { ...globalConfig.uiByUser } });
+    } else {
+        saveGlobalConfig({ ui: { ...globalConfig.ui, theme: next } });
+    }
+    return getUI(uid);
 }
 
 function getOfflineReminder(): OfflineReminder {

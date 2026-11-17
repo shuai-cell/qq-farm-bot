@@ -4,10 +4,18 @@ export {};
 
 const crypto = require('node:crypto');
 const store = require('../../models/store');
+const userStore = require('../../models/user-store');
 const { normalizeAccountRef, resolveAccountId } = require('../../services/account-resolver');
+
+export interface AuthUser {
+    id: string;
+    username: string;
+    role: 'admin' | 'user';
+}
 
 interface AuthenticatedRequest extends Request {
     adminToken?: string;
+    user?: AuthUser;
 }
 
 function getClientIp(req: Request): string {
@@ -29,30 +37,69 @@ const issueToken = (): string => crypto.randomBytes(24).toString('hex');
 function createAuthRequired(ctx: AdminContext) {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
         const token = String(req.headers['x-admin-token'] || '');
-        if (!token || !ctx.tokens.has(token)) {
+        const session = token ? ctx.tokens.get(token) : undefined;
+        if (!token || !session) {
+            res.status(401).json({ ok: false, error: 'Unauthorized' });
+            return;
+        }
+        // 用户被禁用或删除后，其 token 立即失效
+        const record = userStore.getUserById(session.userId);
+        if (!record || record.enabled === false) {
+            ctx.tokens.delete(token);
             res.status(401).json({ ok: false, error: 'Unauthorized' });
             return;
         }
         req.adminToken = token;
+        req.user = { id: record.id, username: record.username, role: record.role === 'admin' ? 'admin' : 'user' };
         next();
     };
 }
 
-function getAccountList(ctx: AdminContext): any[] {
+function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+    if (!req.user || req.user.role !== 'admin') {
+        res.status(403).json({ ok: false, error: '需要管理员权限' });
+        return;
+    }
+    next();
+}
+
+/** 撤销某用户的全部 token（改密/重置/禁用时调用）。 */
+function revokeUserTokens(ctx: AdminContext, userId: string): void {
+    const id = String(userId || '');
+    if (!id) return;
+    for (const [token, session] of ctx.tokens.entries()) {
+        if (session.userId === id) ctx.tokens.delete(token);
+    }
+    if (ctx.io) {
+        for (const socket of ctx.io.sockets.sockets.values()) {
+            const socketUserId = String((socket.data as any)?.userId || '');
+            if (socketUserId === id) socket.disconnect(true);
+        }
+    }
+}
+
+function getAccountList(ctx: AdminContext, user?: AuthUser | null): any[] {
+    let accounts: any[] = [];
     try {
         if (ctx.provider && typeof ctx.provider.getAccounts === 'function') {
             const data = ctx.provider.getAccounts();
-            if (Array.isArray(data?.accounts)) return data.accounts;
+            if (Array.isArray(data?.accounts)) accounts = data.accounts;
         }
     } catch {
-        // Fall back to persistent storage.
+        accounts = [];
     }
-    const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
-    return Array.isArray(data.accounts) ? data.accounts : [];
+    if (!accounts.length) {
+        const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
+        accounts = Array.isArray(data.accounts) ? data.accounts : [];
+    }
+    if (user && user.id) {
+        return accounts.filter((account: any) => String(account?.ownerId || '') === String(user.id));
+    }
+    return accounts;
 }
 
-function getAccountIds(ctx: AdminContext): string[] {
-    return getAccountList(ctx).map((account: any) => String(account.id || '')).filter(Boolean);
+function getAccountIds(ctx: AdminContext, user?: AuthUser | null): string[] {
+    return getAccountList(ctx, user).map((account: any) => String(account.id || '')).filter(Boolean);
 }
 
 const isSoftRuntimeError = (err: any): boolean => {
@@ -93,18 +140,21 @@ function handleApiError(res: Response, err: any): void {
     res.status(500).json(payload);
 }
 
-function resolveAccId(ctx: AdminContext, rawRef: any): string {
+function resolveAccId(ctx: AdminContext, rawRef: any, user?: AuthUser | null): string {
     const input = normalizeAccountRef(rawRef);
     if (!input) return '';
+    const owned = getAccountList(ctx, user);
+    const isOwned = (id: string): boolean => !!id && owned.some((a: any) => String(a.id || '') === id);
     if (ctx.provider && typeof ctx.provider.resolveAccountId === 'function') {
         const resolvedByProvider = normalizeAccountRef(ctx.provider.resolveAccountId(input));
-        if (resolvedByProvider) return resolvedByProvider;
+        if (resolvedByProvider && isOwned(resolvedByProvider)) return resolvedByProvider;
     }
-    return resolveAccountId(getAccountList(ctx), input) || input;
+    const resolvedLocal = resolveAccountId(owned, input);
+    return isOwned(resolvedLocal) ? resolvedLocal : '';
 }
 
 function getAccId(ctx: AdminContext, req: Request): string {
-    return resolveAccId(ctx, req.headers['x-account-id']);
+    return resolveAccId(ctx, req.headers['x-account-id'], (req as AuthenticatedRequest).user);
 }
 
 function buildKnownFriendGidSettings(accountId: string): {
@@ -127,6 +177,8 @@ module.exports = {
     getClientIp,
     issueToken,
     createAuthRequired,
+    requireAdmin,
+    revokeUserTokens,
     getAccountList,
     getAccountIds,
     isSoftRuntimeError,
