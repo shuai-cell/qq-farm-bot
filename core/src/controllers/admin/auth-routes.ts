@@ -7,6 +7,7 @@ const { getRuntimeConfig } = require('../../config/config');
 const { getSchedulerRegistrySnapshot } = require('../../services/scheduler');
 const { createModuleLogger } = require('../../services/logger');
 const userStore = require('../../models/user-store');
+const { getActiveWebBuildId } = require('./web-version');
 
 const {
     getClientIp,
@@ -63,7 +64,7 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         });
     });
 
-    app.post('/api/user/change-password', authRequired, (req: AuthedRequest, res: Response) => {
+    app.post('/api/user/change-password', authRequired, async (req: AuthedRequest, res: Response) => {
         const { oldPassword, newPassword } = req.body || {};
         if (!oldPassword || !newPassword) {
             return res.status(400).json({ ok: false, error: '请提供原密码和新密码' });
@@ -74,17 +75,22 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
     });
 
     app.use('/api', (req: Request, res: Response, next: any) => {
-        if (req.path === '/login' || req.path === '/game-version') return next();
+        if (req.path === '/login' || req.path === '/game-version' || req.path === '/panel/version') return next();
         return authRequired(req, res, next);
     });
 
     app.get('/api/ping', (_req: Request, res: Response) => {
-        res.json({ ok: true, data: { ok: true, uptime: process.uptime(), version } });
+        res.json({ ok: true, data: { ok: true, uptime: process.uptime(), version, webBuildId: getActiveWebBuildId() } });
     });
 
-    app.get('/api/game-version', (_req: Request, res: Response) => {
+    app.get('/api/game-version', async (_req: Request, res: Response) => {
         const { clientVersion, wxClientVersion } = getRuntimeConfig();
-        res.json({ ok: true, clientVersion, wxClientVersion, botVersion: version });
+        const { getServiceSummary } = require('../../session/ipc');
+        res.json({ ok: true, clientVersion, wxClientVersion, botVersion: version, serviceSummary: await getServiceSummary() });
+    });
+
+    app.get('/api/panel/version', (_req: Request, res: Response) => {
+        res.json({ ok: true, data: { webBuildId: getActiveWebBuildId() } });
     });
 
     app.get('/api/auth/validate', (_req: Request, res: Response) => {

@@ -70,6 +70,7 @@ const ranchSwitches = [
 ] as const
 const ranchFriendSwitches = [
   ['ranch_friend_steal', '自动偷取产物'],
+  ['ranch_friend_produce', '自动帮忙生产'],
   ['ranch_friend_clean', '自动清理'],
   ['ranch_stroke', '自动抚摸动物'],
   ['ranch_friend_mosquito', '自动放蚊子'],
@@ -127,7 +128,7 @@ const ranchFeedStages = [
               两种兑换可独立开启；松果按 8 小时、4 小时、1 小时兑换，粑粑按 4 小时、1 小时兑换。到访或货币到账后排队，登录、重连和日常巡查时核对集市状态。
             </div>
             <div class="automation-setting-item">
-              <BaseInput v-model.number="settings.automation.ranch_grass_threshold_percent" class="w-full" label="牧草余量低于（%）时补满" type="number" min="1" max="100" step="1" :disabled="!settings.automation.ranch_grass" />
+              <BaseInput v-model.number="settings.automation.ranch_grass_threshold_percent" class="w-full" label="牧草余量不超过（%）时补充" type="number" min="1" max="100" step="1" :disabled="!settings.automation.ranch_grass" />
             </div>
             <div class="automation-setting-item">
               <BaseInput v-model.number="settings.automation.ranch_check_minutes" class="w-full" label="巡查间隔（分钟）" type="number" min="1" max="60" step="1" />
@@ -461,7 +462,7 @@ const ranchFeedStages = [
               </div>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              自动购买会先按标价币种筛选，再检查余额是否足够；提醒使用「用户设置 → 下线提醒」的推送渠道。
+              自动购买会先按标价币种筛选，再检查余额是否足够。提醒使用「系统设置 → 通知设置」中启用的类型和渠道。
             </p>
           </div>
           <p v-else class="mt-3 text-xs text-gray-500 dark:text-gray-400">
