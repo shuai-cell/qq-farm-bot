@@ -77,6 +77,14 @@ export const menuRoutes: MenuItem[] = [
     component: () => import('@/views/Settings.vue'),
   },
   {
+    path: 'protocol-capture',
+    name: 'protocol-capture',
+    label: '协议采集',
+    icon: 'i-carbon-data-collection',
+    component: () => import('@/views/ProtocolCapture.vue'),
+    meta: { requiresAdmin: true },
+  },
+  {
     path: 'users',
     name: 'users',
     label: '用户管理',

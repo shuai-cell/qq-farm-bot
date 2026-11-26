@@ -25,6 +25,7 @@ const { mountSystemUpdateRoutes } = require('./system-update-routes');
 const { readWebBuildInfo } = require('./web-version');
 const { mountWxLoginRoutes } = require('./wx-login-routes');
 const { mountQqLoginRoutes } = require('./qq-login-routes');
+const { mountProtocolCaptureRoutes } = require('./protocol-capture-routes');
 const {
     setupSocketIO,
     emitRealtimeStatus: _emitStatus,
@@ -142,6 +143,7 @@ function startAdminServer(dataProvider: any): void {
     mountActivityCenterRoutes(app, ctx);
     mountCommerceRoutes(app, ctx);
     mountSystemUpdateRoutes(app, ctx);
+    mountProtocolCaptureRoutes(app, ctx);
 
     // SPA fallback
     app.get('*', (req: any, res: any) => {

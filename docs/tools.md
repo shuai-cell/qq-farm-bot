@@ -12,6 +12,7 @@
 | `analyze-keepalive-capture.js` | 只输出非敏感的版本、心跳和 Gateway Token 形态统计 |
 | `decode-shop-protocols.js` | 解码神秘商人、商城列表、购买响应及相关通知 |
 | `audit-qingmei-flow.js` | 按时间顺序输出青梅活动抓包的精简审计记录 |
+| `download-captured-activity-assets.js` | 从 Helper 活动索引下载明确 URL 的素材并生成哈希清单 |
 
 所有命令均在仓库根目录执行。
 

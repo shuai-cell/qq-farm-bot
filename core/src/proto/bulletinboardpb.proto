@@ -9,6 +9,8 @@ message BulletinItem {
     int64 status = 3;       // 1=已读
     // field 4 reserved
     int64 type = 5;         // 类型
+    // field 6 is present in captured activity notices as an HTTPS image URL.
+    string image_url = 6;
 }
 
 // ============ 请求/回复 ============
